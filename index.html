@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vossabia - KI Kundeservice</title>
+  <style>
+    :root {
+      --green-dark:  #2C4A1E;
+      --green-mid:   #3D6B2C;
+      --green-light: #4A8040;
+      --green-pale:  #F0EBE0;
+      --gold:        #C8922A;
+      --gold-light:  #DBA83E;
+      --gold-pale:   #FAF7F0;
+      --white:       #ffffff;
+      --gray-light:  #FAF7F0;
+      --gray-text:   #2C2C2C;
+      --shadow:      0 4px 24px rgba(44,74,30,0.18);
+      --radius:      16px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: transparent;
+    }
+
+    /* ── Chat bubble trigger ── */
+    #chat-toggle {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--green-mid), var(--green-dark));
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow);
+      transition: transform 0.2s, box-shadow 0.2s;
+      z-index: 999;
+    }
+    #chat-toggle:hover {
+      transform: scale(1.08);
+      box-shadow: 0 6px 28px rgba(45,74,45,0.28);
+    }
+    #chat-toggle svg { color: var(--white); }
+
+    /* Badge for unread */
+    #chat-badge {
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--gold);
+      border: 2px solid var(--white);
+      display: none;
+    }
+    #chat-badge.show { display: block; }
+
+    /* ── Chat window ── */
+    #chat-window {
+      position: fixed;
+      bottom: 96px;
+      right: 24px;
+      width: 380px;
+      max-width: calc(100vw - 32px);
+      height: 560px;
+      max-height: calc(100vh - 120px);
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 998;
+      opacity: 0;
+      transform: translateY(16px) scale(0.97);
+      pointer-events: none;
+      transition: opacity 0.22s ease, transform 0.22s ease;
+    }
+    #chat-window.open {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: all;
+    }
+
+    /* ── Header ── */
+    #chat-header {
+      background: linear-gradient(135deg, var(--green-dark), var(--green-mid));
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    #chat-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--gold), var(--gold-light));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    #chat-header-text { flex: 1; }
+    #chat-header-text h3 {
+      color: var(--white);
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    #chat-header-text p {
+      color: rgba(255,255,255,0.75);
+      font-size: 12px;
+      margin-top: 1px;
+    }
+    #chat-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #6bdb6b;
+      box-shadow: 0 0 0 2px rgba(107,219,107,0.3);
+      display: inline-block;
+      margin-right: 5px;
+    }
+    #close-chat {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: rgba(255,255,255,0.8);
+      padding: 4px;
+      border-radius: 6px;
+      transition: color 0.15s, background 0.15s;
+      display: flex;
+      align-items: center;
+    }
+    #close-chat:hover { color: var(--white); background: rgba(255,255,255,0.1); }
+
+    /* ── Welcome banner ── */
+    #welcome-banner {
+      background: linear-gradient(135deg, var(--gold-pale), #fff8ec);
+      border-bottom: 1px solid rgba(200,150,58,0.15);
+      padding: 12px 16px;
+      flex-shrink: 0;
+    }
+    #welcome-banner p {
+      font-size: 12.5px;
+      color: #7a6030;
+      line-height: 1.5;
+    }
+
+    /* ── Messages area ── */
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      scroll-behavior: smooth;
+    }
+    #messages::-webkit-scrollbar { width: 5px; }
+    #messages::-webkit-scrollbar-track { background: transparent; }
+    #messages::-webkit-scrollbar-thumb { background: rgba(90,143,90,0.25); border-radius: 10px; }
+
+    /* ── Message bubbles ── */
+    .message {
+      display: flex;
+      gap: 8px;
+      max-width: 92%;
+      animation: fadeUp 0.2s ease;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .message.user { align-self: flex-end; flex-direction: row-reverse; }
+    .message.bot  { align-self: flex-start; }
+
+    .msg-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      margin-top: 2px;
+    }
+    .bot  .msg-avatar { background: linear-gradient(135deg, var(--green-light), var(--green-mid)); }
+    .user .msg-avatar { background: linear-gradient(135deg, var(--gold), var(--gold-light)); }
+
+    .msg-bubble {
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .bot .msg-bubble {
+      background: var(--green-pale);
+      color: var(--green-dark);
+      border-bottom-left-radius: 4px;
+    }
+    .user .msg-bubble {
+      background: linear-gradient(135deg, var(--green-mid), var(--green-dark));
+      color: var(--white);
+      border-bottom-right-radius: 4px;
+    }
+    .bot .msg-bubble a {
+      color: var(--green-dark);
+      text-decoration: underline;
+      font-weight: 600;
+    }
+    .bot .msg-bubble a:hover { opacity: 0.75; }
+
+    /* Typing indicator */
+    .typing-bubble {
+      display: flex;
+      gap: 4px;
+      padding: 12px 16px;
+    }
+    .typing-bubble span {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green-light);
+      animation: bounce 1.2s infinite;
+    }
+    .typing-bubble span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-bubble span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+      30%            { transform: translateY(-6px); opacity: 1; }
+    }
+
+    /* ── Quick suggestions ── */
+    #suggestions {
+      padding: 0 12px 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      flex-shrink: 0;
+    }
+    .suggestion-btn {
+      background: var(--gold-pale);
+      border: 1px solid rgba(200,150,58,0.3);
+      border-radius: 20px;
+      padding: 5px 12px;
+      font-size: 12px;
+      color: #7a5520;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .suggestion-btn:hover {
+      background: rgba(200,150,58,0.15);
+      border-color: var(--gold);
+    }
+
+    /* ── Input area ── */
+    #input-area {
+      border-top: 1px solid rgba(90,143,90,0.15);
+      padding: 12px 14px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      flex-shrink: 0;
+      background: var(--gray-light);
+    }
+    #user-input {
+      flex: 1;
+      border: 1.5px solid rgba(90,143,90,0.25);
+      border-radius: 22px;
+      padding: 9px 16px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      max-height: 100px;
+      min-height: 40px;
+      background: var(--white);
+      color: #333;
+      transition: border-color 0.15s;
+      line-height: 1.45;
+    }
+    #user-input::placeholder { color: #aaa; }
+    #user-input:focus { border-color: var(--green-light); }
+
+    #send-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--green-mid), var(--green-dark));
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: transform 0.15s, opacity 0.15s;
+    }
+    #send-btn:hover  { transform: scale(1.08); }
+    #send-btn:active { transform: scale(0.95); }
+    #send-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    #send-btn svg { color: var(--white); }
+
+    /* ── Loading screen overlay ── */
+    #loading-overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0.92);
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 14px;
+      z-index: 10;
+      border-radius: var(--radius);
+      backdrop-filter: blur(3px);
+    }
+    #loading-overlay.show { display: flex; }
+    #loading-overlay p { color: var(--green-dark); font-size: 14px; font-weight: 500; }
+    .loading-spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid rgba(90,143,90,0.2);
+      border-top-color: var(--green-mid);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Mobile ── */
+    @media (max-width: 460px) {
+      #chat-window {
+        bottom: 0;
+        right: 0;
+        width: 100vw;
+        max-width: 100vw;
+        height: 100dvh;
+        max-height: 100dvh;
+        border-radius: 0;
+      }
+      #chat-toggle { bottom: 16px; right: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Chat toggle button -->
+<button id="chat-toggle" aria-label="Opne chat" title="Chat med Vossabia - KI Kundeservice">
+  <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+  </svg>
+  <div id="chat-badge"></div>
+</button>
+
+<!-- Chat window -->
+<div id="chat-window" role="dialog" aria-label="Vossabia kundeservice chat">
+
+  <!-- Loading overlay (shown while scraping) -->
+  <div id="loading-overlay">
+    <div class="loading-spinner"></div>
+    <p>Laster produktinformasjon...</p>
+  </div>
+
+  <!-- Header -->
+  <div id="chat-header">
+    <div id="chat-avatar">🌿</div>
+    <div id="chat-header-text">
+      <h3>Vossabia - KI Kundeservice</h3>
+      <p><span id="chat-status-dot"></span>Naturleg hudpleie frå Voss</p>
+    </div>
+    <button id="close-chat" aria-label="Lukk chat">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Welcome banner -->
+  <div id="welcome-banner">
+    <p>Hei! Eg hjelper deg gjerne med å finne rette produktet for din hud og dine behov. Beskriv problemet ditt, og eg kjem med personlege anbefalingar.</p>
+  </div>
+
+  <!-- Messages -->
+  <div id="messages" aria-live="polite"></div>
+
+  <!-- Quick suggestions -->
+  <div id="suggestions">
+    <button class="suggestion-btn">Tørr hud</button>
+    <button class="suggestion-btn">Sensitiv hud</button>
+    <button class="suggestion-btn">Flass / kløe</button>
+    <button class="suggestion-btn">Kviser / rosacea</button>
+    <button class="suggestion-btn">Bestseljarar</button>
+    <button class="suggestion-btn">Gavepakkar</button>
+  </div>
+
+  <!-- Input -->
+  <div id="input-area">
+    <textarea
+      id="user-input"
+      rows="1"
+      placeholder="Skriv ei melding..."
+      aria-label="Melding til Vossabia - KI Kundeservice"
+    ></textarea>
+    <button id="send-btn" aria-label="Send melding" disabled>
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+        <line x1="22" y1="2" x2="11" y2="13"/>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<script>
+  const chatToggle = document.getElementById('chat-toggle');
+  const chatWindow = document.getElementById('chat-window');
+  const closeChat  = document.getElementById('close-chat');
+  const messagesEl = document.getElementById('messages');
+  const userInput  = document.getElementById('user-input');
+  const sendBtn    = document.getElementById('send-btn');
+  const badge      = document.getElementById('chat-badge');
+  const loadingOverlay = document.getElementById('loading-overlay');
+  const suggestions    = document.querySelectorAll('.suggestion-btn');
+
+  let isOpen       = false;
+  let isLoading    = false;
+  let isReady      = false;
+  let messageHistory = [];
+
+  // ── Toggle chat ──────────────────────────────────────────────
+  function openChat() {
+    isOpen = true;
+    chatWindow.classList.add('open');
+    chatToggle.setAttribute('aria-label', 'Lukk chat');
+    badge.classList.remove('show');
+    userInput.focus();
+    checkReady();
+  }
+
+  function closeWindow() {
+    isOpen = false;
+    chatWindow.classList.remove('open');
+    chatToggle.setAttribute('aria-label', 'Opne chat');
+  }
+
+  chatToggle.addEventListener('click', () => isOpen ? closeWindow() : openChat());
+  closeChat.addEventListener('click', closeWindow);
+
+  // Close on Escape
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && isOpen) closeWindow();
+  });
+
+  // ── Readiness check ──────────────────────────────────────────
+  async function checkReady() {
+    if (isReady) return;
+    try {
+      const r = await fetch('/status');
+      const data = await r.json();
+      if (data.ready) {
+        isReady = true;
+        loadingOverlay.classList.remove('show');
+        sendBtn.disabled = false;
+      } else {
+        loadingOverlay.classList.add('show');
+        setTimeout(checkReady, 2000);
+      }
+    } catch {
+      setTimeout(checkReady, 3000);
+    }
+  }
+
+  // Poll once on page load quietly
+  setTimeout(checkReady, 500);
+
+  // ── Auto-resize textarea ─────────────────────────────────────
+  userInput.addEventListener('input', () => {
+    userInput.style.height = 'auto';
+    userInput.style.height = Math.min(userInput.scrollHeight, 100) + 'px';
+  });
+
+  // ── Send on Enter (Shift+Enter = newline) ────────────────────
+  userInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  });
+  sendBtn.addEventListener('click', send);
+
+  // ── Suggestions ──────────────────────────────────────────────
+  suggestions.forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!isReady || isLoading) return;
+      userInput.value = btn.textContent;
+      send();
+    });
+  });
+
+  // ── Render message ───────────────────────────────────────────
+  function addMessage(role, text) {
+    const div = document.createElement('div');
+    div.className = `message ${role}`;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'msg-avatar';
+    avatar.textContent = role === 'bot' ? '🌿' : '👤';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    if (role === 'bot') {
+      // Allow only <a> tags from bot responses, strip everything else
+      const sanitized = text.replace(/<(?!\/?(a)\b)[^>]+>/gi, '');
+      bubble.innerHTML = sanitized;
+      bubble.querySelectorAll('a').forEach(a => {
+        a.setAttribute('target', '_blank');
+        a.setAttribute('rel', 'noopener noreferrer');
+        // Only allow vossabia.no links
+        try {
+          const url = new URL(a.getAttribute('href'));
+          if (!url.hostname.endsWith('vossabia.no')) a.removeAttribute('href');
+        } catch { a.removeAttribute('href'); }
+      });
+    } else {
+      bubble.textContent = text;
+    }
+
+    div.appendChild(avatar);
+    div.appendChild(bubble);
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return div;
+  }
+
+  function showTyping() {
+    const div = document.createElement('div');
+    div.className = 'message bot';
+    div.id = 'typing-indicator';
+
+    const avatar = document.createElement('div');
+    avatar.className = 'msg-avatar';
+    avatar.textContent = '🌿';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble typing-bubble';
+    bubble.innerHTML = '<span></span><span></span><span></span>';
+
+    div.appendChild(avatar);
+    div.appendChild(bubble);
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function removeTyping() {
+    const el = document.getElementById('typing-indicator');
+    if (el) el.remove();
+  }
+
+  // ── Main send function ───────────────────────────────────────
+  async function send() {
+    if (!isReady || isLoading) return;
+    const text = userInput.value.trim();
+    if (!text) return;
+
+    // Reset input
+    userInput.value = '';
+    userInput.style.height = 'auto';
+
+    // Hide suggestions after first message
+    document.getElementById('suggestions').style.display = 'none';
+
+    addMessage('user', text);
+    messageHistory.push({ role: 'user', content: text });
+
+    isLoading = true;
+    sendBtn.disabled = true;
+    showTyping();
+
+    try {
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: messageHistory }),
+      });
+
+      const data = await res.json();
+      removeTyping();
+
+      if (data.reply) {
+        addMessage('bot', data.reply);
+        messageHistory.push({ role: 'assistant', content: data.reply });
+        // Show badge if window is closed
+        if (!isOpen) badge.classList.add('show');
+      } else {
+        addMessage('bot', 'Noko gjekk gale. Prøv igjen, eller kontakt oss på post@vossabia.no.');
+      }
+    } catch {
+      removeTyping();
+      addMessage('bot', 'Noko gjekk gale. Prøv igjen om litt, eller kontakt oss på post@vossabia.no eller ring +47 90 47 19 88.');
+    } finally {
+      isLoading = false;
+      sendBtn.disabled = false;
+      userInput.focus();
+    }
+  }
+</script>
+</body>
+</html>
