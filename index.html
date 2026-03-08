@@ -423,6 +423,7 @@
       </svg>
     </button>
   </div>
+  <p style="text-align:center;font-size:10px;color:#bbb;padding:5px 0 7px;flex-shrink:0;">Levert av KI konsulent Innset</p>
 </div>
 
 <script>
@@ -523,9 +524,18 @@
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble';
     if (role === 'bot') {
-      // Allow only <a> tags from bot responses, strip everything else
+      // Strip all tags except <a>, then auto-link bare URLs in non-<a> segments
       const sanitized = text.replace(/<(?!\/?(a)\b)[^>]+>/gi, '');
-      bubble.innerHTML = sanitized;
+      const linked = sanitized
+        .split(/(<a\b[^>]*>.*?<\/a>)/gi)
+        .map((part, i) => i % 2 === 0
+          ? part.replace(/https?:\/\/[^\s<>"']+/g, url => {
+              const clean = url.replace(/[.,;:!?)]+$/, '');
+              return `<a href="${clean}" target="_blank" rel="noopener noreferrer">${clean}</a>`;
+            })
+          : part)
+        .join('');
+      bubble.innerHTML = linked;
       bubble.querySelectorAll('a').forEach(a => {
         a.setAttribute('target', '_blank');
         a.setAttribute('rel', 'noopener noreferrer');
