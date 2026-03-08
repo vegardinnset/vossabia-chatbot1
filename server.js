@@ -173,6 +173,9 @@ KONTAKT:
 - E-post: post@vossabia.no
 - Telefon: +47 90 47 19 88
 - Adresse: Vætesvegen 92, 5708 Voss
+- Nettbutikk: https://vossabia.no
+- Alle produkt: https://vossabia.no/collections/alle-produkter
+- FAQ: https://vossabia.no/pages/faq
 
 ÅTFERDSREGLAR:
 1. Hald svar korte — maks 2-3 setningar med mindre kunden spør om detaljar.
