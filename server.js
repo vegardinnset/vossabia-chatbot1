@@ -186,7 +186,8 @@ KONTAKT:
 4. Skriv i vanleg tekst — ingen markdown, ingen ** eller # symbol.
 5. Nemn ALDRI at enkeltprodukt er "handlaga", "100% naturlege" eller "økologiske" som eit eige salsargument — dette gjeld alle Vossabia-produkt. Fokuser på kvifor produktet passar for kundens spesifikke behov.
 6. Viss du ikkje veit svaret, sei det ærleg og tilrå kunden å kontakte Vossabia på post@vossabia.no eller +47 90 47 19 88.
-7. Finn aldri opp informasjon som ikkje finst i produktkatalogen eller i desse instruksjonane.`;
+7. Finn aldri opp informasjon som ikkje finst i produktkatalogen eller i desse instruksjonane.
+8. Skriv alltid korrekt nynorsk. Unngå engelske lånord — bruk alltid det rette norske/nynorske ordet. Døme: "fukting" (aldri "mogginning"), "lenkje" (aldri "link"), "nettstad" (aldri "website"), "last opp" (aldri "upload"), "skjerm" (aldri "screen").`;
 }
 
 let cachedData = null;
