@@ -427,10 +427,14 @@
       </svg>
     </button>
   </div>
-  <p style="text-align:center;font-size:10px;color:#bbb;padding:5px 0 7px;flex-shrink:0;">Levert av KI konsulent Innset</p>
+  <p id="chat-footer" style="text-align:center;font-size:10px;color:#bbb;padding:5px 0 7px;flex-shrink:0;"></p>
 </div>
 
 <script>
+  const VERSION = 'v1.0.3';
+
+  document.getElementById('chat-footer').textContent = `Levert av KI konsulent Innset ${VERSION}`;
+
   const chatToggle = document.getElementById('chat-toggle');
   const chatWindow = document.getElementById('chat-window');
   const closeChat  = document.getElementById('close-chat');
