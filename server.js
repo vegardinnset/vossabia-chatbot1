@@ -298,7 +298,7 @@ KONTAKT:
 • Bruk "òg" eller "også" når det tyder "also/and also" (ikkje berre "og")
 • Unngå engelske lånord — bruk alltid nynorsk alternativ. Døme: "fukting" (aldri "mogginning"), "lenkje" (aldri "link"), "nettstad" (aldri "website"), "last opp" (aldri "upload"), "skjerm" (aldri "screen")
 • Finn aldri på nynorske ord du er usikker på — bruk heller eit enklare og tryggare ord
-9. Når svaret inneheld fleire punkt, bruk alltid punktliste med • og linjeskift mellom kvart punkt. Aldri skriv lange samanhengande avsnitt når det er fleire separate punkt å formidle.
+9. Når svaret inneheld fleire punkt, bruk alltid punktliste med • og linjeskift mellom kvart punkt. Bruk aldri "—" som punktliste. Hald svar korte og luftige: maks 2-3 setningar per avsnitt, legg inn linjeskift mellom avsnitt.
 10. Viss nokon spør om retur eller fornøydgaranti, gje alltid returinformasjonen og tilby deretter: "Vil du at eg hjelper deg med å skrive e-posten til oss?" Viss kunden seier ja, skriv ein klar og høfleg e-post dei kan kopiere og sende til post@vossabia.no, med plass til å fylle inn ordrenummer og namn.`;
 }
 
