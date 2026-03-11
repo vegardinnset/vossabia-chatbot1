@@ -76,19 +76,93 @@ async function scrapeProductList() {
   return [...productUrls];
 }
 
-async function scrapeAboutPage() {
-  console.log('Scraping about page...');
+async function scrapeTextPage(url, label) {
+  console.log(`Scraping ${label}...`);
   try {
-    const $ = await fetchPage('https://vossabia.no/pages/om-vossabia');
+    const $ = await fetchPage(url);
     const parts = [];
-    $('main p, main h1, main h2, main h3, main li').each((_, el) => {
+    // Wide selector set covering Shopify page templates
+    $('main p, main h1, main h2, main h3, main h4, main li, main dt, main dd, .page-content p, .rte p, .rte li, section p, section li').each((_, el) => {
       const text = $(el).text().trim();
       if (text.length > 10) parts.push(text);
     });
-    return parts.join('\n').slice(0, 4000);
+    return parts.join('\n').slice(0, 5000);
   } catch (err) {
-    console.error('Failed to scrape about page:', err.message);
+    console.error(`Failed to scrape ${label} (${url}): ${err.message}`);
     return '';
+  }
+}
+
+async function scrapeShippingPage() {
+  const candidates = [
+    'https://vossabia.no/pages/fraktinfo',
+    'https://vossabia.no/pages/levering',
+    'https://vossabia.no/pages/frakt',
+    'https://vossabia.no/pages/shipping',
+  ];
+  for (const url of candidates) {
+    try {
+      const $ = await fetchPage(url);
+      const parts = [];
+      $('main p, main h1, main h2, main h3, main li, .rte p, .rte li, section p').each((_, el) => {
+        const text = $(el).text().trim();
+        if (text.length > 10) parts.push(text);
+      });
+      const text = parts.join('\n').slice(0, 5000);
+      if (text.length > 50) {
+        console.log(`Scraping frakt... OK (${url})`);
+        return text;
+      }
+    } catch { /* try next */ }
+  }
+  console.warn('Frakt: ingen av URL-ane fungerte, brukar fallback-tekst');
+  return '';
+}
+
+async function scrapeBlogPost(url) {
+  try {
+    const $ = await fetchPage(url);
+    const title = $('h1').first().text().trim();
+    const parts = [];
+    // Shopify blog articles use article tag and .rte/.article__content
+    $('article p, article h2, article h3, article li, .article__content p, .article__content li, .article-template p, .rte p, .rte li').each((_, el) => {
+      const text = $(el).text().trim();
+      if (text.length > 20) parts.push(text);
+    });
+    // Fallback to any main content
+    if (parts.length === 0) {
+      $('main p, main li').each((_, el) => {
+        const text = $(el).text().trim();
+        if (text.length > 20) parts.push(text);
+      });
+    }
+    const text = (title ? title + '\n' : '') + [...new Set(parts)].join('\n');
+    return text.slice(0, 3000);
+  } catch (err) {
+    console.error(`  Failed to scrape blog post ${url}: ${err.message}`);
+    return '';
+  }
+}
+
+async function scrapeBlogIndex() {
+  console.log('Scraping blog index...');
+  try {
+    const $ = await fetchPage('https://vossabia.no/blogs/news');
+    const posts = new Set();
+    $('a[href*="/blogs/news/"]').each((_, el) => {
+      const href = $(el).attr('href');
+      if (href) {
+        const url = href.startsWith('http') ? href : `https://vossabia.no${href.split('?')[0]}`;
+        // Exclude the index page itself
+        if (!url.endsWith('/blogs/news') && !url.includes('?')) posts.add(url);
+      }
+    });
+    const list = [...posts].slice(0, 10);
+    console.log(`Found ${list.length} blog posts`);
+    return list;
+  } catch (err) {
+    console.error('Failed to scrape blog index:', err.message);
+    return [];
   }
 }
 
@@ -96,10 +170,23 @@ async function runScrape() {
   console.log('\n=== Starting Vossabia data scrape ===');
   const startTime = Date.now();
 
-  const [productUrls, aboutText] = await Promise.all([
+  const [productUrls, aboutText, faqText, shippingText, termsText, aboutUsText, blogPostUrls] = await Promise.all([
     scrapeProductList(),
-    scrapeAboutPage(),
+    scrapeTextPage('https://vossabia.no/pages/om-vossabia',       'om-vossabia'),
+    scrapeTextPage('https://vossabia.no/pages/faq',               'FAQ'),
+    scrapeShippingPage(),
+    scrapeTextPage('https://vossabia.no/pages/salgsbetingelser',  'salgsbetingelser'),
+    scrapeTextPage('https://vossabia.no/pages/om-oss',            'om-oss'),
+    scrapeBlogIndex(),
   ]);
+
+  // Scrape blog posts with dedicated article scraper
+  const blogPosts = [];
+  for (const url of blogPostUrls) {
+    console.log(`Scraping blogg: ${url.split('/').pop()}...`);
+    const text = await scrapeBlogPost(url);
+    if (text) blogPosts.push({ url, text });
+  }
 
   // Scrape product pages with concurrency limit
   const products = [];
@@ -114,11 +201,16 @@ async function runScrape() {
   const data = {
     scrapedAt: new Date().toISOString(),
     about: aboutText,
+    aboutUs: aboutUsText,
+    faq: faqText,
+    shipping: shippingText,
+    terms: termsText,
+    blogPosts,
     products,
   };
 
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-  console.log(`=== Scrape complete: ${products.length} products saved in ${((Date.now() - startTime) / 1000).toFixed(1)}s ===\n`);
+  console.log(`=== Scrape complete: ${products.length} products, ${blogPosts.length} blog posts in ${((Date.now() - startTime) / 1000).toFixed(1)}s ===\n`);
   return data;
 }
 
@@ -141,35 +233,45 @@ function buildSystemPrompt(data) {
     `PRODUKT: ${p.name}\nPRIS: ${p.price}\nURL: ${p.url}\nBESKRIVELSE:\n${p.description}`
   ).join('\n\n---\n\n');
 
-  return `Du er ein hjelpsam KI-kundeserviceassistent levert av KI konsulent Innset på vegne av Vossabia. Svar alltid på nynorsk med ein varm og personleg tone, med mindre kunden skriv på eit anna språk — då svarar du på same språk som kunden.
+  const blogSummaries = (data.blogPosts || []).map(p =>
+    `BLOGGINNLEGG (${p.url}):\n${p.text}`
+  ).join('\n\n---\n\n');
+
+  return `Du er ein hjelpsam KI-kundeserviceassistent levert av KI konsulent Innset på vegne av Vossabia. Detect automatisk kva språk kunden skriv på, og svar alltid på same språk:
+• Skriv kunden på nynorsk eller bokmål → svar på nynorsk
+• Skriv kunden på engelsk → svar på engelsk
+• Skriv kunden på tysk → svar på tysk
+Bruk alltid ein varm og personleg tone uansett språk.
 
 Viss nokon spør kven du er eller kven som har laga deg, svar at du er ein KI-assistent levert av KI konsulent Innset på vegne av Vossabia. Skriv aldri "Vossabia — naturleg hudpleie frå Voss sidan 2004" eller liknande oppramsing etter kvart du nemner Vossabia. Bruk berre slik bakgrunnsinformasjon når kunden spesifikt spør om kva Vossabia er.
 
 OM VOSSABIA:
-${data.about || 'Vossabia er ein norsk produsent av naturleg hudpleie og hårpleie, grunnlagt i 2004 av Renate Lunde. Dei plukkar viltvoksande plantar og brukar råstoff frå eigne bier, og produserer produkt for hand på garden i Voss.'}
+${data.about || data.aboutUs || 'Vossabia er ein norsk produsent av naturleg hudpleie og hårpleie, grunnlagt i 2004 av Renate Lunde. Dei plukkar viltvoksande plantar og brukar råstoff frå eigne bier, og produserer produkt for hand på garden i Voss.'}
 
 PRODUKTKATALOG:
 ${productSummaries}
 
+FAQ:
+${data.faq || ''}
+
 FRAKT:
-- Gratis frakt på ordrar over 600 kr
+${data.shipping || `- Gratis frakt på ordrar over 600 kr
 - Under 600 kr: fraktkostnad visast i kassen
-- Levering skjer utan unødig opphald, seinast 30 dagar etter bestilling
+- Levering skjer utan unødig opphald, seinast 30 dagar etter bestilling`}
 
-RETUR OG ANGRERETT:
-- 14 dagars angrerett frå mottak av varen
-- Kunden dekker returkostnaden sjølv
-- Send melding til post@vossabia.no for å starte retur
-- Refusjon utbetalast etter at vara er mottatt og kontrollert
+SALGSBETINGELSER:
+${data.terms || ''}
 
-BETALING:
-- Kort belastast same dag som vara sendast
-- Faktura: minimum 14 dagars betalingsfrist frå mottak
-- Alle prisar inkluderer MVA
+RETUR OG FORNØYDGARANTI:
+- 30 dagars fornøydgaranti — ikkje nøgd? Du får alle pengane tilbake, utan spørsmål
+- Returadresse: Vossabia AS, Vætesvegen 92, 5708 Voss
+- Merk sendinga med fullt namn og ordrenummer
+- Originale fraktkostnader og returfrakt vert IKKJE refundert
+- Fornøydgarantien gjeld kun bestillingar gjort i nettbutikken på vossabia.no
+- Kundeservice: post@vossabia.no, måndag–fredag kl. 08:00–16:00
 
-REKLAMASJON:
-- Reklamasjonsfrist: 2 år (5 år for produkt som er meint å vara lenger)
-- Kontakt: post@vossabia.no eller tlf. +47 90 47 19 88
+BLOGGINNLEGG:
+${blogSummaries || '(ingen blogginnlegg scraped)'}
 
 KONTAKT:
 - E-post: post@vossabia.no
@@ -180,14 +282,24 @@ KONTAKT:
 - FAQ: https://vossabia.no/pages/faq
 
 ÅTFERDSREGLAR:
-1. Hald svar korte — maks 2-3 setningar med mindre kunden spør om detaljar.
-2. Anbefal relevante produkt med namn som HTML-lenkjer: <a href="URL" target="_blank" rel="noopener">Produktnamn</a> — bruk den eksakte URL-en frå produktkatalogen.
-3. Nemn IKKJE pris med mindre kunden spesifikt spør om det.
-4. Skriv i vanleg tekst — ingen markdown, ingen ** eller # symbol.
-5. Nemn ALDRI at enkeltprodukt er "handlaga", "100% naturlege" eller "økologiske" som eit eige salsargument — dette gjeld alle Vossabia-produkt. Fokuser på kvifor produktet passar for kundens spesifikke behov.
-6. Viss du ikkje veit svaret, sei det ærleg og tilrå kunden å kontakte Vossabia på post@vossabia.no eller +47 90 47 19 88.
-7. Finn aldri opp informasjon som ikkje finst i produktkatalogen eller i desse instruksjonane.
-8. Skriv alltid korrekt nynorsk. Unngå engelske lånord — bruk alltid det rette norske/nynorske ordet. Døme: "fukting" (aldri "mogginning"), "lenkje" (aldri "link"), "nettstad" (aldri "website"), "last opp" (aldri "upload"), "skjerm" (aldri "screen").`;
+1. Svar KUN basert på informasjon du har scraped frå nettsida ovanfor. Finn aldri på fakta du ikkje har i datagrunnlaget ditt.
+2. Viss du ikkje finn svaret i datagrunnlaget, sei alltid: "Eg er ikkje sikker — kontakt oss på post@vossabia.no eller tlf. 90 47 19 88."
+3. Hald svar korte — maks 2-3 setningar med mindre kunden spør om detaljar.
+4. Anbefal relevante produkt med namn som HTML-lenkjer: <a href="URL" target="_blank" rel="noopener">Produktnamn</a> — bruk den eksakte URL-en frå produktkatalogen.
+5. Nemn IKKJE pris med mindre kunden spesifikt spør om det.
+6. Skriv i vanleg tekst — ingen markdown, ingen ** eller # symbol.
+7. Nemn ALDRI at enkeltprodukt er "handlaga", "100% naturlege" eller "økologiske" som eit eige salsargument — dette gjeld alle Vossabia-produkt. Fokuser på kvifor produktet passar for kundens spesifikke behov.
+8. Når du svarar på nynorsk, følg desse reglane strengt:
+• Bruk "eg" (aldri "jeg")
+• Bruk "ikkje" (aldri "ikke")
+• Bruk "kva" (aldri "hva")
+• Bruk "dei" (aldri "de" eller "dem")
+• Bruk "korleis" (aldri "hvordan")
+• Bruk "òg" eller "også" når det tyder "also/and also" (ikkje berre "og")
+• Unngå engelske lånord — bruk alltid nynorsk alternativ. Døme: "fukting" (aldri "mogginning"), "lenkje" (aldri "link"), "nettstad" (aldri "website"), "last opp" (aldri "upload"), "skjerm" (aldri "screen")
+• Finn aldri på nynorske ord du er usikker på — bruk heller eit enklare og tryggare ord
+9. Når svaret inneheld fleire punkt, bruk alltid punktliste med • og linjeskift mellom kvart punkt. Aldri skriv lange samanhengande avsnitt når det er fleire separate punkt å formidle.
+10. Viss nokon spør om retur eller fornøydgaranti, gje alltid returinformasjonen og tilby deretter: "Vil du at eg hjelper deg med å skrive e-posten til oss?" Viss kunden seier ja, skriv ein klar og høfleg e-post dei kan kopiere og sende til post@vossabia.no, med plass til å fylle inn ordrenummer og namn.`;
 }
 
 let cachedData = null;
