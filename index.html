@@ -543,9 +543,10 @@
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble';
     if (role === 'bot') {
-      // Strip all tags except <a>, then auto-link bare URLs in non-<a> segments
+      // Strip all tags except <a>, convert \n to <br>, auto-link bare URLs
       const sanitized = text.replace(/<(?!\/?(a)\b)[^>]+>/gi, '');
-      const linked = sanitized
+      const withBreaks = sanitized.replace(/\n/g, '<br>');
+      const linked = withBreaks
         .split(/(<a\b[^>]*>.*?<\/a>)/gi)
         .map((part, i) => i % 2 === 0
           ? part.replace(/https?:\/\/[^\s<>"']+/g, url => {

@@ -270,6 +270,10 @@ RETUR OG FORNØYDGARANTI:
 - Fornøydgarantien gjeld kun bestillingar gjort i nettbutikken på vossabia.no
 - Kundeservice: post@vossabia.no, måndag–fredag kl. 08:00–16:00
 
+DYRETESTING:
+- Vossabia sine produkt er ikkje testa på dyr
+- Vossabia er på Dyrevernalliansen sine grøne sider
+
 BLOGGINNLEGG:
 ${blogSummaries || '(ingen blogginnlegg scraped)'}
 
